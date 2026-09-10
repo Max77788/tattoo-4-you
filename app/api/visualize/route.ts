@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     const form = new FormData();
     form.append("image", new Blob([new Uint8Array(person.data)], { type: person.mimeType }), `person.${extension(person.mimeType)}`);
     form.append("image2", new Blob([new Uint8Array(tattoo.data)], { type: tattoo.mimeType }), `tattoo.${extension(tattoo.mimeType)}`);
-    form.append("model", process.env.NARA_IMAGE_MODEL || "qwen-image-2.0-pro");
+    form.append("model", process.env.NARA_IMAGE_MODEL || "nano banana pro");
     form.append("prompt", `Create a realistic tattoo placement preview. The first reference image is the exact base photograph of the person. The second reference image is the exact tattoo artwork. Place the tattoo on the person's ${bodyPart}. Preserve the tattoo design faithfully: do not redraw, beautify, simplify, mirror, crop, add, remove, or invent details. Scale and warp it naturally to the selected anatomy, following body perspective and curvature. Blend ink into the skin with realistic opacity, texture, lighting, and shadows while keeping the person's identity, pose, clothing, background, skin tone, and framing unchanged. Output only the edited photo, with no text, labels, borders, extra tattoos, logos, or watermarks.`);
     form.append("size", "1024x1536");
     form.append("prompt_extend", "true");
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     const encoded = payload?.data?.[0]?.b64_json || payload?.data?.[0]?.b64 || payload?.images?.[0]?.b64_json;
     const imageUrl = payload?.data?.[0]?.url || payload?.images?.[0]?.url;
     if (!encoded && !imageUrl) return NextResponse.json({ error: "Nara returned no preview image." }, { status: 502 });
-    return NextResponse.json({ image: encoded ? `data:image/png;base64,${encoded}` : imageUrl, model: process.env.NARA_IMAGE_MODEL || "qwen-image-2.0-pro" });
+    return NextResponse.json({ image: encoded ? `data:image/png;base64,${encoded}` : imageUrl, model: process.env.NARA_IMAGE_MODEL || "nano banana pro" });
   } catch (error) {
     console.error("Tattoo visualization failed", error);
     const message = error instanceof Error ? error.message : "Could not create the preview.";
