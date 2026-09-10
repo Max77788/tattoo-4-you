@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const NARA_EDIT_URL = "https://api-images.bynara.id/v1/images/edits";
+const GEMINI_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
 const allowed = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 type ImageInput = { mimeType: string; data: Buffer };
@@ -17,18 +17,11 @@ function parseDataUrl(value: unknown): ImageInput {
   return { mimeType: match[1], data };
 }
 
-function extension(mimeType: string) {
-  return mimeType === "image/jpeg" ? "jpg" : mimeType.split("/")[1];
-}
-
-function providerError(status: number, payload: unknown) {
-  const message = typeof payload === "object" && payload !== null && "error" in payload
-    ? (payload as { error?: { message?: string } | string }).error
-    : undefined;
-  const detail = typeof message === "string" ? message : message?.message;
-  if (status === 401 || status === 403) return "Nara rejected the image API key. Check the NARA_API_KEY value in Vercel.";
-  if (status === 429) return "Nara image generation is rate limited. Please wait a moment and try again.";
-  return detail || `Nara image generation failed with HTTP ${status}.`;
+function geminiError(status: number, payload: any) {
+  const message = payload?.error?.message;
+  if (status === 401 || status === 403) return "Gemini rejected the API key. Check GEMINI_API_KEY in Vercel.";
+  if (status === 429) return "Gemini image generation quota is exhausted. Check Google AI billing and rate limits.";
+  return message || `Gemini image generation failed with HTTP ${status}.`;
 }
 
 export async function POST(request: Request) {
@@ -38,32 +31,35 @@ export async function POST(request: Request) {
     const tattoo = parseDataUrl(body.tattoo);
     const bodyPart = typeof body.bodyPart === "string" ? body.bodyPart.trim() : "";
     if (!bodyPart || bodyPart.length > 80) return NextResponse.json({ error: "Choose a valid body part." }, { status: 400 });
-    if (!process.env.NARA_API_KEY) return NextResponse.json({ error: "Nara is not configured yet." }, { status: 503 });
 
-    const form = new FormData();
-    form.append("image", new Blob([new Uint8Array(person.data)], { type: person.mimeType }), `person.${extension(person.mimeType)}`);
-    form.append("image2", new Blob([new Uint8Array(tattoo.data)], { type: tattoo.mimeType }), `tattoo.${extension(tattoo.mimeType)}`);
-    form.append("model", process.env.NARA_IMAGE_MODEL || "grok-imagine");
-    form.append("prompt", `Use Image 1 as the person base. Place the exact tattoo design from Image 2 on the persons ${bodyPart}. Preserve the person and tattoo faithfully.`);
-    form.append("size", "1024x1536");
-    form.append("prompt_extend", "true");
-    form.append("watermark", "false");
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_KEY;
+    if (!apiKey) return NextResponse.json({ error: "Gemini is not configured yet." }, { status: 503 });
 
-    const response = await fetch(NARA_EDIT_URL, {
+    const prompt = `Use Image 1 as the person base photo. Use Image 2 as the exact tattoo artwork. Place the tattoo on the person's ${bodyPart}. Preserve the person, identity, pose, framing, and tattoo design faithfully. Blend the tattoo naturally into the skin. Return only the edited image with no text, borders, logos, or watermarks.`;
+    const payload = {
+      contents: [{
+        parts: [
+          { inlineData: { mimeType: person.mimeType, data: person.data.toString("base64") } },
+          { inlineData: { mimeType: tattoo.mimeType, data: tattoo.data.toString("base64") } },
+          { text: prompt },
+        ],
+      }],
+      generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+    };
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${process.env.NARA_API_KEY}` },
-      body: form,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
-    const raw = await response.text();
-    let payload: any = {};
-    try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = {}; }
-    if (!response.ok) return NextResponse.json({ error: providerError(response.status, payload) }, { status: response.status >= 500 ? 502 : response.status });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) return NextResponse.json({ error: geminiError(response.status, result) }, { status: response.status >= 500 ? 502 : response.status });
 
-    const encoded = payload?.data?.[0]?.b64_json || payload?.data?.[0]?.b64 || payload?.images?.[0]?.b64_json;
-    const imageUrl = payload?.data?.[0]?.url || payload?.images?.[0]?.url;
-    if (!encoded && !imageUrl) return NextResponse.json({ error: "Nara returned no preview image." }, { status: 502 });
-    const resolvedUrl = typeof imageUrl === "string" && imageUrl.startsWith("/") ? `https://api-images.bynara.id${imageUrl}` : imageUrl;
-    return NextResponse.json({ image: encoded ? `data:image/png;base64,${encoded}` : resolvedUrl, model: process.env.NARA_IMAGE_MODEL || "grok-imagine" });
+    const parts = result?.candidates?.[0]?.content?.parts || [];
+    const imagePart = parts.find((part: any) => part?.inlineData?.data);
+    if (!imagePart) return NextResponse.json({ error: "Gemini returned no preview image." }, { status: 502 });
+    const mimeType = imagePart.inlineData.mimeType || "image/png";
+    return NextResponse.json({ image: `data:${mimeType};base64,${imagePart.inlineData.data}`, model: GEMINI_MODEL });
   } catch (error) {
     console.error("Tattoo visualization failed", error);
     const message = error instanceof Error ? error.message : "Could not create the preview.";
