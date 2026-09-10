@@ -29,14 +29,34 @@ export default function Home() {
   const [error, setError] = useState("");
   const matches = useMemo(() => bodyParts.filter(item => item.toLowerCase().includes(query.toLowerCase())).slice(0, 18), [query]);
 
-  async function fileToData(file: File) { return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file); }); }
+  async function prepareImage(file: File, maxDimension = 1600) {
+    const source = await createImageBitmap(file);
+    const scale = Math.min(1, maxDimension / Math.max(source.width, source.height));
+    const width = Math.max(1, Math.round(source.width * scale));
+    const height = Math.max(1, Math.round(source.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d")?.drawImage(source, 0, 0, width, height);
+    source.close();
+    const compressed = canvas.toDataURL("image/webp", 0.82);
+    if (!compressed.startsWith("data:image/webp")) {
+      return canvas.toDataURL("image/jpeg", 0.82);
+    }
+    return compressed;
+  }
+
   async function visualize() {
     if (!person || !tattoo || !part) { setError("Add both photos and choose the exact body part first."); return; }
     setBusy(true); setError(""); setResult(null);
     try {
-      const response = await fetch("/api/visualize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person: await fileToData(person), tattoo: await fileToData(tattoo), bodyPart: part }) });
-      const data = await response.json();
+      const [personImage, tattooImage] = await Promise.all([prepareImage(person, 1600), prepareImage(tattoo, 1400)]);
+      const response = await fetch("/api/visualize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person: personImage, tattoo: tattooImage, bodyPart: part }) });
+      const raw = await response.text();
+      let data: { image?: string; error?: string } = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: response.status === 413 ? "The images are still too large. Please choose smaller photos." : `The preview service returned an unexpected response (${response.status}).` }; }
       if (!response.ok) throw new Error(data.error || "Could not create the preview.");
+      if (!data.image) throw new Error("The preview service returned no image. Try again with clearer photos.");
       setResult(data.image);
     } catch (err) { setError(err instanceof Error ? err.message : "Something went wrong. Try again."); } finally { setBusy(false); }
   }
