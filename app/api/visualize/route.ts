@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     form.append("image", new Blob([new Uint8Array(person.data)], { type: person.mimeType }), `person.${extension(person.mimeType)}`);
     form.append("image2", new Blob([new Uint8Array(tattoo.data)], { type: tattoo.mimeType }), `tattoo.${extension(tattoo.mimeType)}`);
     form.append("model", process.env.NARA_IMAGE_MODEL || "grok-imagine");
-    form.append("prompt", `Use Image 1 as the person base. Place the exact tattoo design from Image 2 on the person's ${bodyPart}. Preserve the person and tattoo faithfully.`);
+    form.append("prompt", `Use Image 1 as the person base. Place the exact tattoo design from Image 2 on the persons ${bodyPart}. Preserve the person and tattoo faithfully.`);
     form.append("size", "1024x1536");
     form.append("prompt_extend", "true");
     form.append("watermark", "false");
