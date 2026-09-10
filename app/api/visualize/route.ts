@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_KEY;
     if (!apiKey) return NextResponse.json({ error: "Gemini is not configured yet." }, { status: 503 });
 
-    const prompt = `Use Image 1 as the person base photo. Use Image 2 as the exact tattoo artwork. Place the tattoo on the person's ${bodyPart}. Preserve the person, identity, pose, framing, and tattoo design faithfully. Blend the tattoo naturally into the skin. Return only the edited image with no text, borders, logos, or watermarks.`;
+    const prompt = `Use Image 1 as the person base photo. Use Image 2 as the exact new tattoo artwork. Place the new tattoo on the person's ${bodyPart}. Preserve the person, identity, pose, framing, skin, and every existing tattoo from Image 1 exactly as they are. NEVER erase, remove, cover, replace, redraw, alter, or weaken any existing tattoo in the original picture. Add only the new tattoo from Image 2, blend it naturally into the skin, and return only the edited image with no text, borders, logos, or watermarks.`;
     const payload = {
       contents: [{
         parts: [

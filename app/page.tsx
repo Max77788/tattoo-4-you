@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const bodyParts = [
   "Head / scalp", "Forehead", "Temple", "Behind the ear", "Ear", "Neck front", "Neck side", "Nape of neck", "Throat",
@@ -21,13 +21,15 @@ function UploadCard({ label, hint, file, onFile, accent }: UploadCardProps) {
 export default function Home() {
   const [person, setPerson] = useState<File | null>(null);
   const [tattoo, setTattoo] = useState<File | null>(null);
-  const [query, setQuery] = useState("");
   const [part, setPart] = useState("");
-  const [open, setOpen] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const matches = useMemo(() => bodyParts.filter(item => item.toLowerCase().includes(query.toLowerCase())).slice(0, 18), [query]);
+  const resultRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (result) resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [result]);
 
   async function prepareImage(file: File, maxDimension = 1600) {
     const source = await createImageBitmap(file);
@@ -63,8 +65,8 @@ export default function Home() {
   return <main>
     <nav className="nav"><div className="brand"><span className="brand-mark">T4Y</span><span>TATTOO <b>4</b> YOU</span></div><span className="nav-note">AI-powered placement preview</span></nav>
     <section className="hero"><div className="eyebrow">Before the needle</div><h1>See your ink.<br /><em>Feel the fit.</em></h1><p className="hero-copy">Your tattoo. Your body. No guesswork.<br />Upload two photos and preview the design in its exact place.</p><div className="scroll-cue">BUILD YOUR PREVIEW <span>↓</span></div></section>
-    <section className="builder" id="builder"><div className="step-row"><span><i>01</i> YOUR PHOTOS</span><span><i>02</i> PLACEMENT</span><span><i>03</i> YOUR PREVIEW</span></div><div className="form-grid"><div className="photo-column"><div className="section-title"><span className="number">01</span><div><h2>Bring the references.</h2><p>Use a clear photo with the body area visible.</p></div></div><div className="uploads"><UploadCard label="Upload your photo" hint="Full body or the area you want to see" file={person} onFile={setPerson} accent /><UploadCard label="Upload tattoo design" hint="PNG with transparency works best" file={tattoo} onFile={setTattoo} /></div><p className="privacy"><span>✦</span> Your images are used only to create this preview and are never stored.</p></div><div className="placement-column"><div className="section-title"><span className="number">02</span><div><h2>Choose the canvas.</h2><p>Search 100+ precise placement options.</p></div></div><div className="combobox"><input value={query || part} onChange={e => { setQuery(e.target.value); setPart(""); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="Search body parts..." aria-label="Search body parts" /><span>⌄</span>{open && <div className="options">{matches.length ? matches.map(item => <button type="button" key={item} onClick={() => { setPart(item); setQuery(""); setOpen(false); }}>{item}</button>) : <p>No placements found</p>}</div>}</div>{part && <div className="selected"><span>SELECTED PLACEMENT</span><strong>{part}</strong><button type="button" onClick={() => setPart("")}>×</button></div>}<div className="placement-note"><span>◎</span><p><b>Placement matters.</b> We preserve the design, scale it naturally, and blend it into the perspective, lighting, and skin of your photo.</p></div></div></div><button type="button" className="generate" onClick={visualize} disabled={busy}>{busy ? <><span className="spinner" /> COMPOSING YOUR PREVIEW...</> : <>SHOW ME THE INK <span>→</span></>}</button>{error && <div className="error">{error}</div>}</section>
-    {result && <section className="result"><div className="result-head"><div><div className="eyebrow">03 · Your preview</div><h2>Here is how it could look.</h2><p>A visual direction, not a final tattoo. Talk to your artist about scale and placement.</p></div><a className="download" href={result} download="tattoo-4-you-preview.png">DOWNLOAD IMAGE ↓</a></div><div className="result-frame"><img src={result} alt={`Tattoo preview on ${part}`} /></div></section>}
+    <section className="builder" id="builder"><div className="step-row"><span><i>01</i> YOUR PHOTOS</span><span><i>02</i> PLACEMENT</span><span><i>03</i> YOUR PREVIEW</span></div><div className="form-grid"><div className="photo-column"><div className="section-title"><span className="number">01</span><div><h2>Bring the references.</h2><p>Use a clear photo with the body area visible.</p></div></div><div className="uploads"><UploadCard label="Upload your photo" hint="Full body or the area you want to see" file={person} onFile={setPerson} accent /><UploadCard label="Upload tattoo design" hint="PNG with transparency works best" file={tattoo} onFile={setTattoo} /></div><p className="privacy"><span>✦</span> Your images are used only to create this preview and are never stored.</p></div><div className="placement-column"><div className="section-title"><span className="number">02</span><div><h2>Describe the canvas.</h2><p>Tell us exactly where you want the tattoo placed.</p></div></div><div className="combobox"><input value={part} onChange={e => setPart(e.target.value)} placeholder="e.g. left side of neck, outer right forearm" aria-label="Describe tattoo placement" /></div><p className="placement-examples">Examples: <button type="button" onClick={() => setPart("left side of neck")}>left side of neck</button>, <button type="button" onClick={() => setPart("inner right forearm")}>inner right forearm</button>, <button type="button" onClick={() => setPart("upper back between the shoulder blades")}>upper back between the shoulder blades</button>.</p><div className="placement-note"><span>◎</span><p><b>Placement matters.</b> Be specific about side, surface, and nearby landmarks. We preserve the design, scale it naturally, and blend it into the perspective, lighting, and skin of your photo.</p></div></div></div><button type="button" className="generate" onClick={visualize} disabled={busy}>{busy ? <><span className="spinner" /> COMPOSING YOUR PREVIEW...</> : <>SHOW ME THE INK <span>→</span></>}</button>{error && <p className="error">{error}</p>}</section>
+    {result && <section ref={resultRef} className="result"><div className="result-head"><div><div className="eyebrow">03 · Your preview</div><h2>Here is how it could look.</h2><p>A visual direction, not a final tattoo. Talk to your artist about scale and placement.</p></div><a className="download" href={result} download="tattoo-4-you-preview.png">DOWNLOAD IMAGE ↓</a></div><div className="result-frame"><img src={result} alt={`Tattoo preview on ${part}`} /></div></section>}
     <footer><span>© 2026 TATTOO 4 YOU</span><span>DESIGNED FOR THE DECISIVE</span><span>AI PREVIEW · HUMAN ARTISTRY</span></footer>
   </main>;
 }
