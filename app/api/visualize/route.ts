@@ -27,22 +27,33 @@ function geminiError(status: number, payload: any) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const person = parseDataUrl(body.person);
-    const tattoo = parseDataUrl(body.tattoo);
-    const bodyPart = typeof body.bodyPart === "string" ? body.bodyPart.trim() : "";
-    if (!bodyPart || bodyPart.length > 80) return NextResponse.json({ error: "Choose a valid body part." }, { status: 400 });
-
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_KEY;
     if (!apiKey) return NextResponse.json({ error: "Gemini is not configured yet." }, { status: 503 });
 
-    const prompt = `You are compositing a tattoo preview, not redesigning an image.\n\nIMAGE ROLES\n- Image 1 is the person base photo. Preserve it as the source of truth for identity, body, pose, framing, skin texture, lighting, clothing, background, and every existing tattoo.\n- Image 2 is the exact tattoo artwork to add. Treat it as a strict visual reference, not inspiration.\n\nPLACEMENT AND LEFT/RIGHT VIEWPOINT\nPlace only the new tattoo on the requested location: ${bodyPart}. Interpret every left/right instruction from the viewpoint of the photographer or viewer looking at Image 1, not from the model's own viewpoint. In other words, \"left side of the neck\" means the left side as it appears in the photo to the viewer, even if that corresponds to the model's anatomical right side. Use the visible left/right side in the image consistently for the entire composition. Never mirror or swap sides. Make the placement anatomically plausible and follow the body's perspective, curvature, lighting, and skin texture.\n\nNON-NEGOTIABLE PRESERVATION RULES\n- NEVER remove, erase, cover, replace, redraw, retouch, blur, fade, weaken, merge, or alter ANY existing tattoo from Image 1. Existing tattoos must remain visible and unchanged, even if they overlap, are near, or are behind the requested placement.\n- Do not clean up the skin or modify scars, marks, moles, hair, clothing, facial features, body shape, pose, background, or composition.\n- Do not move the new tattoo to a different body part or the opposite side. If the requested area is ambiguous, use the closest clearly visible surface on the viewer-facing side while keeping the existing tattoos intact.\n\nEXACT ARTWORK FIDELITY\n- Copy Image 2's design exactly: preserve its subject, linework, geometry, proportions, orientation, scale relationships, negative space, fine details, colors, shading, and edges.\n- Do not invent, omit, simplify, stylize, mirror, flip, stretch, distort, recolor, add text, or substitute any element of the provided design.\n- Do not add extra ornaments, background graphics, duplicate tattoos, or artistic interpretation.\n- Keep the tattoo artwork recognizable as the same supplied design at a glance.\n\nOUTPUT\nReturn one realistic edited image only. Add only the supplied tattoo, naturally integrated into the skin. No text, borders, logos, watermarks, labels, or other edits.`;
+    const editPrompt = typeof body.editPrompt === "string" ? body.editPrompt.trim() : "";
+    let prompt: string;
+    let imageParts: Array<{ inlineData: { mimeType: string; data: string } }>;
+
+    if (editPrompt) {
+      if (editPrompt.length > 600) return NextResponse.json({ error: "Keep your edit instruction under 600 characters." }, { status: 400 });
+      const baseImage = parseDataUrl(body.baseImage);
+      prompt = `Edit Image 1 according to this user's instruction: \"${editPrompt}\"\n\nTreat Image 1 as the current tattoo preview. Apply the requested change precisely and make no unrelated changes. Preserve the person's identity, body, pose, framing, skin texture, lighting, clothing, background, and composition unless the user explicitly requests a change to one of those elements.\n\nNON-NEGOTIABLE TATTOO PRESERVATION\n- NEVER remove, erase, cover, replace, redraw, retouch, blur, fade, weaken, merge, or alter ANY tattoo that already exists in Image 1. Existing tattoos must remain visible and unchanged.\n- Preserve the supplied tattoo artwork's subject, linework, geometry, proportions, orientation, negative space, fine details, colors, shading, and edges unless the user explicitly asks to change the newly added tattoo.\n- If the user asks to move or resize the newly added tattoo, keep its design faithful and use the viewer/photographer perspective for left and right. Never mirror or swap sides.\n- Do not invent extra tattoos, ornaments, text, logos, borders, labels, or watermarks.\n\nReturn one realistic edited image only.`;
+      imageParts = [{ inlineData: { mimeType: baseImage.mimeType, data: baseImage.data.toString("base64") } }];
+    } else {
+      const person = parseDataUrl(body.person);
+      const tattoo = parseDataUrl(body.tattoo);
+      const bodyPart = typeof body.bodyPart === "string" ? body.bodyPart.trim() : "";
+      if (!bodyPart || bodyPart.length > 80) return NextResponse.json({ error: "Choose a valid body part." }, { status: 400 });
+      prompt = `You are compositing a tattoo preview, not redesigning an image.\n\nIMAGE ROLES\n- Image 1 is the person base photo. Preserve it as the source of truth for identity, body, pose, framing, skin texture, lighting, clothing, background, and every existing tattoo.\n- Image 2 is the exact tattoo artwork to add. Treat it as a strict visual reference, not inspiration.\n\nPLACEMENT AND LEFT/RIGHT VIEWPOINT\nPlace only the new tattoo on the requested location: ${bodyPart}. Interpret every left/right instruction from the viewpoint of the photographer or viewer looking at Image 1, not from the model's own viewpoint. In other words, \"left side of the neck\" means the left side as it appears in the photo to the viewer, even if that corresponds to the model's anatomical right side. Use the visible left/right side in the image consistently for the entire composition. Never mirror or swap sides. Make the placement anatomically plausible and follow the body's perspective, curvature, lighting, and skin texture.\n\nNON-NEGOTIABLE PRESERVATION RULES\n- NEVER remove, erase, cover, replace, redraw, retouch, blur, fade, weaken, merge, or alter ANY existing tattoo from Image 1. Existing tattoos must remain visible and unchanged, even if they overlap, are near, or are behind the requested placement.\n- Do not clean up the skin or modify scars, marks, moles, hair, clothing, facial features, body shape, pose, background, or composition.\n- Do not move the new tattoo to a different body part or the opposite side. If the requested area is ambiguous, use the closest clearly visible surface on the viewer-facing side while keeping the existing tattoos intact.\n\nEXACT ARTWORK FIDELITY\n- Copy Image 2's design exactly: preserve its subject, linework, geometry, proportions, orientation, scale relationships, negative space, fine details, colors, shading, and edges.\n- Do not invent, omit, simplify, stylize, mirror, flip, stretch, distort, recolor, add text, or substitute any element of the provided design.\n- Do not add extra ornaments, background graphics, duplicate tattoos, or artistic interpretation.\n- Keep the tattoo artwork recognizable as the same supplied design at a glance.\n\nOUTPUT\nReturn one realistic edited image only. Add only the supplied tattoo, naturally integrated into the skin. No text, borders, logos, watermarks, labels, or other edits.`;
+      imageParts = [
+        { inlineData: { mimeType: person.mimeType, data: person.data.toString("base64") } },
+        { inlineData: { mimeType: tattoo.mimeType, data: tattoo.data.toString("base64") } },
+      ];
+    }
+
     const payload = {
       contents: [{
-        parts: [
-          { inlineData: { mimeType: person.mimeType, data: person.data.toString("base64") } },
-          { inlineData: { mimeType: tattoo.mimeType, data: tattoo.data.toString("base64") } },
-          { text: prompt },
-        ],
+        parts: [...imageParts, { text: prompt }],
       }],
       generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
     };

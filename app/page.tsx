@@ -55,6 +55,8 @@ export default function Home() {
   const [part, setPart] = useState("");
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editPrompt, setEditPrompt] = useState("");
   const [error, setError] = useState("");
   const resultRef = useRef<HTMLElement>(null);
   const builderRef = useRef<HTMLElement>(null);
@@ -66,7 +68,7 @@ export default function Home() {
     if (result) resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [result]);
 
-  async function prepareImage(file: File, maxDimension = 1600) {
+  async function prepareImage(file: Blob, maxDimension = 1600) {
     const source = await createImageBitmap(file);
     const scale = Math.min(1, maxDimension / Math.max(source.width, source.height));
     const width = Math.max(1, Math.round(source.width * scale));
@@ -99,6 +101,22 @@ export default function Home() {
     } catch (err) { setError(err instanceof Error ? err.message : "Something went wrong. Try again."); } finally { setBusy(false); }
   }
 
+  async function editPreview() {
+    if (!result || !editPrompt.trim()) return;
+    setEditBusy(true); setError("");
+    try {
+      const source = await fetch(result);
+      const baseImage = await prepareImage(await source.blob(), 1600);
+      const response = await fetch("/api/visualize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ baseImage, editPrompt: editPrompt.trim() }) });
+      const raw = await response.text();
+      let data: { image?: string; error?: string } = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: `The editor returned an unexpected response (${response.status}).` }; }
+      if (!response.ok) throw new Error(data.error || "Could not edit the preview.");
+      if (!data.image) throw new Error("The editor returned no image. Try a more specific instruction.");
+      setResult(data.image); setEditPrompt("");
+    } catch (err) { setError(err instanceof Error ? err.message : "Something went wrong while editing the preview."); } finally { setEditBusy(false); }
+  }
+
   return <main>
     <nav className="nav" aria-label="Primary navigation">
       <a className="brand" href="#top" aria-label="Tattoo 4 You home"><span className="brand-mark">T4Y</span><span>TATTOO <b>4</b> YOU</span></a>
@@ -122,7 +140,7 @@ export default function Home() {
       <div className="generate-row"><button type="button" className="generate" onClick={visualize} disabled={busy}>{busy ? <><span className="spinner" /> COMPOSING YOUR PREVIEW...</> : <>SHOW ME THE INK <span>→</span></>}</button><span className="generate-note">Usually ready in under a minute<br />No account required</span></div>
     </section>
 
-    {result && <section ref={resultRef} className="result"><div className="result-inner"><div className="result-head"><div><div className="eyebrow">03 · Your private preview</div><h2>Now make the call<br /><em>with confidence.</em></h2><p>A visual direction, not a final tattoo. Take it to your artist and refine the scale, flow, and placement together.</p></div><a className="download" href={result} download="tattoo-4-you-preview.png">Download image <span>↓</span></a></div><div className="result-equation"><div className="equation-source"><div className="equation-label">YOUR PHOTO</div><div className="equation-thumb">{personPreview && <img src={personPreview} alt="Original person photo" />}</div></div><div className="equation-symbol" aria-hidden="true">+</div><div className="equation-source"><div className="equation-label">YOUR DESIGN</div><div className="equation-thumb tattoo-thumb">{tattooPreview && <img src={tattooPreview} alt="Uploaded tattoo design" />}</div></div><div className="equation-symbol" aria-hidden="true">=</div><div className="equation-result"><div className="equation-label">THE POSSIBILITY</div><div className="result-frame"><img src={result} alt={`Tattoo preview on ${part}`} /></div></div></div><div className="result-footer"><span>PLACEMENT: {part.toUpperCase()}</span><button type="button" onClick={() => { setResult(null); builderRef.current?.scrollIntoView({ behavior: "smooth" }); }}>Try another placement ↗</button></div></div></section>}
+    {result && <section ref={resultRef} className="result"><div className="result-inner"><div className="result-head"><div><div className="eyebrow">03 · Your private preview</div><h2>Now make the call<br /><em>with confidence.</em></h2><p>A visual direction, not a final tattoo. Take it to your artist and refine the scale, flow, and placement together.</p></div><a className="download" href={result} download="tattoo-4-you-preview.png">Download image <span>↓</span></a></div><div className="result-equation"><div className="equation-source"><div className="equation-label">YOUR PHOTO</div><div className="equation-thumb">{personPreview && <img src={personPreview} alt="Original person photo" />}</div></div><div className="equation-symbol" aria-hidden="true">+</div><div className="equation-source"><div className="equation-label">YOUR DESIGN</div><div className="equation-thumb tattoo-thumb">{tattooPreview && <img src={tattooPreview} alt="Uploaded tattoo design" />}</div></div><div className="equation-symbol" aria-hidden="true">=</div><div className="equation-result"><div className="equation-label">THE POSSIBILITY</div><div className="result-frame"><img src={result} alt={`Tattoo preview on ${part}`} /></div></div></div><div className="edit-panel"><div className="eyebrow">04 · Refine the possibility</div><h3>Want to try one more change?</h3><p>Describe the edit in your own words. Existing tattoos and the supplied design stay protected.</p><div className="edit-row"><textarea value={editPrompt} onChange={e => setEditPrompt(e.target.value)} placeholder="e.g. Make the new tattoo 15% smaller and move it slightly toward the collarbone" maxLength={600} rows={3} aria-label="Describe an edit to the created image" /><button type="button" className="edit-button" onClick={editPreview} disabled={editBusy || !editPrompt.trim()}>{editBusy ? <><span className="spinner" /> EDITING...</> : <>EDIT THIS PREVIEW <span>→</span></>}</button></div><div className="edit-examples"><span>Try:</span><button type="button" onClick={() => setEditPrompt("Make the new tattoo 15% smaller")}>make it smaller</button><button type="button" onClick={() => setEditPrompt("Move the new tattoo slightly toward the collarbone")}>move it toward the collarbone</button><button type="button" onClick={() => setEditPrompt("Make the new tattoo look slightly more natural on the skin")}>blend it more naturally</button></div></div><div className="result-footer"><span>PLACEMENT: {part.toUpperCase()}</span><button type="button" onClick={() => { setResult(null); builderRef.current?.scrollIntoView({ behavior: "smooth" }); }}>Try another placement ↗</button></div></div></section>}
 
     <footer><div className="footer-brand"><span className="brand-mark">T4Y</span><strong>TATTOO 4 YOU</strong></div><span>AI PREVIEW · HUMAN ARTISTRY</span><span>© 2026 TATTOO 4 YOU</span></footer>
   </main>;
