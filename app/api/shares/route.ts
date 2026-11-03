@@ -24,8 +24,10 @@ export async function POST(request: Request) {
     if (contentLength > 4 * 1024 * 1024) return NextResponse.json({ error: "The combined upload is too large. Try smaller images." }, { status: 413 });
     const body = await request.json();
     const bodyPart = typeof body.bodyPart === "string" ? body.bodyPart.trim() : "";
+    const rawBodySide = body.bodySide;
+    const bodySide = rawBodySide === "left" || rawBodySide === "right" ? rawBodySide : null;
     const requestText = typeof body.requestText === "string" ? body.requestText.trim() : "";
-    if (!bodyPart || bodyPart.length > 80 || requestText.length > 600) return NextResponse.json({ error: "The placement or request is invalid." }, { status: 400 });
+    if ((rawBodySide !== undefined && rawBodySide !== null && rawBodySide !== "" && bodySide === null) || !bodyPart || bodyPart.length > 80 || requestText.length > 600) return NextResponse.json({ error: "The placement or request is invalid." }, { status: 400 });
     const images = [decodeImage(body.person), decodeImage(body.tattoo), decodeImage(body.result)];
     const id = randomUUID();
     const deleteToken = randomBytes(32).toString("hex");
@@ -35,7 +37,7 @@ export async function POST(request: Request) {
       access: "public", addRandomSuffix: false, contentType: image.mimeType,
     })));
     const record = {
-      id, createdAt: new Date().toISOString(), bodyPart, requestText, deleteTokenHash,
+      id, createdAt: new Date().toISOString(), bodyPart, bodySide, requestText, deleteTokenHash,
       person: stored[0].url, tattoo: stored[1].url, result: stored[2].url,
     };
     await put(`tattoo-shares/${id}/share.json`, JSON.stringify(record), {

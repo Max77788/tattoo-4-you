@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
-type Share = { id: string; bodyPart: string; requestText: string; person: string; tattoo: string; result: string; createdAt: string };
+type Share = { id: string; bodyPart: string; bodySide?: "left" | "right" | null; requestText: string; person: string; tattoo: string; result: string; createdAt: string };
 
 export default function SharedPreview() {
   const { id } = useParams<{ id: string }>();
@@ -41,8 +41,8 @@ export default function SharedPreview() {
     <section className="result shared-result"><div className="result-inner">
       <div className="result-head"><div><div className="eyebrow">A Tattoo 4 You preview</div><h1 className="shared-title">The idea,<br /><em>in place.</em></h1><p>A visual direction, not a final tattoo. Review the placement and discuss it with a professional tattoo artist.</p></div>{share && <a className="download" href={share.result} download="tattoo-4-you-preview.png">Download result ↓</a>}</div>
       {error && !share ? <p className="error-message" role="alert">{error}</p> : share && <>
-        <div className="result-equation"><div className="equation-source"><div className="equation-label">PERSON PHOTO</div><div className="equation-thumb"><img src={share.person} alt="Shared person photo" /></div></div><div className="equation-symbol" aria-hidden="true">+</div><div className="equation-source"><div className="equation-label">TATTOO DESIGN</div><div className="equation-thumb tattoo-thumb"><img src={share.tattoo} alt="Shared tattoo design" /></div></div><div className="equation-symbol" aria-hidden="true">=</div><div className="equation-result"><div className="equation-label">PLACEMENT PREVIEW</div><div className="result-frame"><img src={share.result} alt={`Tattoo preview on ${share.bodyPart}`} /></div></div></div>
-        <div className="result-footer"><span>PLACEMENT: {share.bodyPart.toUpperCase()}</span><span>{share.requestText ? `REQUEST: ${share.requestText}` : "SHARED TATTOO PREVIEW"}</span></div>
+        <div className="result-equation"><div className="equation-source"><div className="equation-label">PERSON PHOTO</div><div className="equation-thumb"><img src={share.person} alt="Shared person photo" /></div></div><div className="equation-symbol" aria-hidden="true">+</div><div className="equation-source"><div className="equation-label">TATTOO DESIGN</div><div className="equation-thumb tattoo-thumb"><img src={share.tattoo} alt="Shared tattoo design" /></div></div><div className="equation-symbol" aria-hidden="true">=</div><div className="equation-result"><div className="equation-label">PLACEMENT PREVIEW</div><div className="result-frame"><img src={share.result} alt={`Tattoo preview on ${share.bodySide ? `image-${share.bodySide}` : ""} ${share.bodyPart}`} /></div></div></div>
+        <div className="result-footer"><span>PLACEMENT: {share.bodyPart.toUpperCase()}{share.bodySide ? ` · IMAGE-${share.bodySide.toUpperCase()}` : ""}</span><span>{share.requestText ? `REQUEST: ${share.requestText}` : "SHARED TATTOO PREVIEW"}</span></div>
         {canDelete && <button className="delete-share" type="button" disabled={deleting} onClick={removeShare}>{deleting ? "DELETING…" : "Delete this public share"}</button>}
       </>}
     </div></section>
